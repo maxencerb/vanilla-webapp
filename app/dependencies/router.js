@@ -1,30 +1,30 @@
 /**
- * @typedef {string | undefined} PartialString
  * 
  * @typedef {Object} Twitter
- * @property {PartialString} card
- * @property {PartialString} domain
- * @property {PartialString} url
- * @property {PartialString} title
- * @property {PartialString} description
- * @property {PartialString} image
+ * @property {string} [card]
+ * @property {string} [domain]
+ * @property {string} [url]
+ * @property {string} [title]
+ * @property {string} [description]
+ * @property {string} [image]
  * 
  * @typedef {Object} OpenGraph
- * @property {PartialString} url
- * @property {PartialString} type
- * @property {PartialString} title
- * @property {PartialString} description
- * @property {PartialString} image
+ * @property {string} [url]
+ * @property {string} [type]
+ * @property {string} [title]
+ * @property {string} [description]
+ * @property {string} [image]
  * 
  * @typedef {Object} RouteMeta
- * @property {OpenGraph | undefined} og
- * @property {Twitter | undefined} twitter
- * @property {PartialString} title
- * @property {PartialString} description
+ * @property {OpenGraph} [og]
+ * @property {Twitter} [twitter]
+ * @property {string} [title]
+ * @property {string} [description]
  * 
  * @typedef {Object} RouterOptions
  * @property {Routes[]} routes
  * @property {HTMLElement} wrapper
+ * @property {string} [base]
  * 
  * @typedef {"routeChanged" | "initialized" | "unmounted" | "paramsChanged"} RouterEvents
  * @typedef {(newValue: Router) => void} RouterEventListenner
@@ -244,9 +244,9 @@ class NotFoundRoute extends Route {
  * // Wrapper is required
  * const router = new Router({
  *  routes: [
- *    new Route('/', '/pages/index.html'),
- *    new Route('/app', '/pages/app.html'),
- *    new NotFoundRoute('/pages/404.html')
+ *    new Route('/', 'home'),
+ *    new Route('/:id', 'app'),
+ *    new NotFoundRoute()
  *  ],
  *   wrapper: document.querySelector('#app')
  * });
@@ -287,6 +287,11 @@ class Router {
     eventListeners = {};
 
     /**
+     * @type {RouteMeta}
+     */
+    defaultMeta;
+
+    /**
      * @type {Record<string, string>}
      */
     get params() {
@@ -314,6 +319,7 @@ class Router {
         this.routes = options.routes;
         this.wrapper = options.wrapper;
         this.notFoundRoute = this.find404Route(this.routes);
+        this.defaultMeta = options.defaultMeta || {};
     }
 
     /**
