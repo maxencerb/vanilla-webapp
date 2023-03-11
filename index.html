@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Vanilla JS web app</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        html {
+            color-scheme: dark;
+        }
+    </style>
+</head>
+<body>
+    <nav>
+        <ul>
+            <li><a href="/" prefetch>Home</a></li>
+            <li><a href="/app" prefetch>App</a></li>
+            <li><a href="/hello" prefetch>App</a></li>
+        </ul>
+    </nav>
+    <div id="app"></div>
+    <script type="module">
+        import { init } from '/app/index.js';
+        init();
+        document.body.onchange = () => {
+            console.log('body changed')
+        }
+    </script>
+</body>
+</html>
