@@ -60,6 +60,10 @@ class RouterRouteError extends Error {
 const SCRIPT_REGEX = /<template [\s\S]*?[\s]*?script=["']([\s\S]*?)["']>[\s\S]*?<\/template>/;
 const CONTENT_REGEX = /<template[\s\S]*?>([\s\S]*?)<\/template>/;
 
+const META = {
+
+}
+
 class Route {
 
     /**
@@ -99,6 +103,11 @@ class Route {
      * @private
      */
     _eventListenners = {};
+
+    /**
+     * @type {Router | undefined}
+     */
+    router;
 
     /**
      * 
@@ -150,22 +159,25 @@ class Route {
 
     /**
      * @param {string[]} path
+     * @param {boolean} [changeParams]
      * 
      * @returns {boolean}
      */
-    match(path) {
-        this.params = {};
+    match(path, changeParams = false) {
         if (this.path === 404) return false;
         if (this.path.length !== path.length) return false;
-        this.params = {};
+        const params = {};
         const result = this.path.every((part, index) => {
             if (part.startsWith(':')) {
-                this.params[part.slice(1)] = path[index];
+                params[part.slice(1)] = path[index];
                 return true;
             }
             return part === path[index];
         })
-        this.emit("paramsChanged")
+        if (changeParams) {
+            this.params = params;
+            this.emit("paramsChanged")
+        }
         return result;
     }
 
@@ -179,11 +191,17 @@ class Route {
         if (method) method();
     }
 
+    onParamsChanged() {
+        // this.router.refreshMeta();
+    }
+
     mounted() {
+        this.on('paramsChanged', this.onParamsChanged.bind(this));
         if (this._script) this.fetchScript().then(module => this.runIfExist(module.mounted));
     }
 
     async unmount() {
+        this.off('paramsChanged', this.onParamsChanged.bind(this));
         if (this._script) await this.fetchScript().then(module => this.runIfExist(module.unmount));
     }
 
@@ -205,6 +223,8 @@ class Route {
         this._eventListenners[event].set('' + callback, callback);
     }
 
+    // TODO: fix params changed event not firing
+
     /**
      * 
      * @param {RouteEvents} event
@@ -222,6 +242,14 @@ class Route {
     emit(event) {
         if (!this._eventListenners[event]) return;
         this._eventListenners[event]?.forEach(listener => listener(this));
+    }
+
+    /**
+     * 
+     * @param {Router | undefined} router 
+     */
+    setRouter(router) {
+        this.router = router;
     }
 }
 
@@ -292,6 +320,24 @@ class Router {
     defaultMeta;
 
     /**
+     * @type {RouteMeta}
+     */
+    get meta() {
+        return {
+            ...this.defaultMeta,
+            ...this.currentRoute?.meta,
+            og: {
+                ...this.defaultMeta?.og,
+                ...this.currentRoute?.meta?.og
+            },
+            twitter: {
+                ...this.defaultMeta?.twitter,
+                ...this.currentRoute?.meta?.twitter
+            }
+        }
+    }
+
+    /**
      * @type {Record<string, string>}
      */
     get params() {
@@ -333,13 +379,18 @@ class Router {
         return res;
     }
 
+    /**
+     * @private
+     * @param {MouseEvent} event 
+     */
     onDocumentClick(event) {
-        if (event.target.tagName === 'A') {
+        if (event.target?.tagName === 'A') {
             this.route(event);
         }
     }
 
     onParamsChanged() {
+        console.log('params changed');
         this.emit("paramsChanged");
     }
 
@@ -347,14 +398,15 @@ class Router {
      * Initialize router
      */
     init() {
-        this.handleLocation();
         window.addEventListener('popstate', this.handleLocation.bind(this));
         document.addEventListener('click', this.onDocumentClick.bind(this));
         for (const route of this.routes) {
             route.on('paramsChanged', this.onParamsChanged.bind(this));
+            route.setRouter(this);
         }
         this.isInitialized = true;
         this.emit("initialized");
+        this.handleLocation();
     }
 
     /**
@@ -365,22 +417,43 @@ class Router {
         document.removeEventListener('click', this.onDocumentClick.bind(this));
         for (const route of this.routes) {
             route.off('paramsChanged', this.onParamsChanged.bind(this));
+            route.setRouter(undefined);
         }
         this.isInitialized = false;
         this.emit("unmounted");
     }
 
 
+    /**
+     * @private
+     * @param {Event} [event]
+     */
     route(event) {
         event = event || window.event;
-        event.preventDefault();
+        event?.preventDefault();
         window.history.pushState({}, '', event.target.href);
         this.handleLocation();
     }
 
-    findRoute(path) {
+    /**
+     * Use this method to handle location changes in your scripts
+     * 
+     * @param {string} path - path to navigate to
+     */
+    navigate(path) {
+        window.history.pushState({}, '', path);
+        this.handleLocation();
+    }
+
+    /**
+     * 
+     * @param {string} path 
+     * @param {boolean} routeChange 
+     * @returns {Route}
+     */
+    findRoute(path, routeChange = false) {
         const pathArray = path.split('/').filter(Boolean);
-        return this.routes.find(route => route.match(pathArray)) || this.notFoundRoute;
+        return this.routes.find(route => route.match(pathArray, routeChange)) || this.notFoundRoute;
     }
 
     onDomChanged() {
@@ -430,7 +503,7 @@ class Router {
 
     async handleLocation() {
         const path = window.location.pathname;
-        const route = this.findRoute(path);
+        const route = this.findRoute(path, true);
         if (route === this.currentRoute) return;
         await this.currentRoute?.unmount();
         const html = await route.fetchRoute();
@@ -439,6 +512,64 @@ class Router {
         this.currentRoute = route;
         this.emit("routeChanged");
         route.mounted();
+    }
+
+    /**
+     * 
+     * @param {HTMLHeadElement} head 
+     * @param {string} title 
+     */
+    refreshTitle(head, title) {
+        const titleTag = document.querySelector('title');
+        if (!titleTag) {
+            const newTitleTag = document.createElement('title');
+            newTitleTag.innerHTML = title;
+            head.appendChild(newTitleTag);
+            return;
+        }
+        titleTag.innerHTML = title;
+    }
+
+    /**
+     * 
+     * @param {HTMLHeadElement} head 
+     * @param {string} name 
+     * @param {string} content 
+     * @param {boolean} [isProperty]
+     */
+    refreshMeta(head, name, content, isProperty = false) {
+        const key = isProperty ? 'property' : 'name';
+        let metaTag = document.querySelector(`meta[${key}=${name}]`);
+        if (!metaTag) {
+            metaTag = document.createElement('meta');
+            metaTag.setAttribute(key, name);
+            head.appendChild(metaTag);
+        }
+        metaTag.setAttribute('content', content);
+        metaTag.setAttribute('data-router', 'true');
+    }
+
+    refreshMeta() {
+        const meta = this.meta;
+
+        const head = document.querySelector('head');
+
+        this.refreshTitle(head, meta.title);
+
+
+        // const metaTags = document.querySelectorAll('meta');
+        // metaTags.forEach(tag => {
+        //     const name = tag.getAttribute('name');
+        //     const property = tag.getAttribute('property');
+        //     if (name) {
+        //         tag.setAttribute('content', meta[name]);
+        //     }
+        //     if (property) {
+        //         tag.setAttribute('content', meta[property]);
+        //     }
+        // });
+        // const title = document.querySelector('title');
+        // title.innerHTML = meta.title;
     }
 }
 

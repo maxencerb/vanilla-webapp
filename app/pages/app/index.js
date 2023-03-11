@@ -1,8 +1,7 @@
 import { appRouter } from "../../index.js";
 
-const link = document.querySelector('#link');
-
 function paramChanged() {
+    const link = document.querySelector('#link');
     link.innerHTML = appRouter.params.id;
 }
 
