@@ -25,6 +25,8 @@
  * @property {Routes[]} routes
  * @property {HTMLElement} wrapper
  * @property {string} [base]
+ * @property {RouteMeta} [defaultMeta]
+ * 
  * 
  * @typedef {"routeChanged" | "initialized" | "unmounted" | "paramsChanged"} RouterEvents
  * @typedef {(newValue: Router) => void} RouterEventListenner
@@ -61,7 +63,22 @@ const SCRIPT_REGEX = /<template [\s\S]*?[\s]*?script=["']([\s\S]*?)["']>[\s\S]*?
 const CONTENT_REGEX = /<template[\s\S]*?>([\s\S]*?)<\/template>/;
 
 const META = {
-
+    description: 'name',
+    og: {
+        description: 'property',
+        image: 'property',
+        title: 'property',
+        type: 'property',
+        url: 'property'
+    },
+    twitter: {
+        card: 'name',
+        description: 'name',
+        image: 'name',
+        title: 'name',
+        url: 'property',
+        domain: 'property'
+    },
 }
 
 class Route {
@@ -125,7 +142,7 @@ class Route {
      * 
      * @param {string | 404} path the router path
      * @param {string} view link to the html file
-     * @param {RouteMeta | undefined} meta meta data for the route
+     * @param {RouteMeta} [meta] meta data for the route
      */
     constructor(path, view, meta = {}) {
         if (!path) {
@@ -570,6 +587,7 @@ class Router {
             head.appendChild(newTitleTag);
             return;
         }
+        if (titleTag.innerHTML === title) return;
         titleTag.innerHTML = title;
     }
 
@@ -577,17 +595,22 @@ class Router {
      * 
      * @param {HTMLHeadElement} head 
      * @param {string} name 
-     * @param {string} content 
+     * @param {string} [content] 
      * @param {boolean} [isProperty]
      */
-    refreshMeta(head, name, content, isProperty = false) {
+    refreshMetaAttribute(head, name, content, isProperty = false) {
         const key = isProperty ? 'property' : 'name';
         let metaTag = document.querySelector(`meta[${key}=${name}]`);
         if (!metaTag) {
             metaTag = document.createElement('meta');
             metaTag.setAttribute(key, name);
             head.appendChild(metaTag);
+        } else if (!content) {
+            metaTag.remove();
+            return;
         }
+        const currentContent = metaTag.getAttribute('content');
+        if (currentContent === content) return;
         metaTag.setAttribute('content', content);
         metaTag.setAttribute('data-router', 'true');
     }
@@ -599,20 +622,18 @@ class Router {
 
         this.refreshTitle(head, meta.title);
 
+        // description
+        this.refreshMetaAttribute(head, 'description', meta.description);
 
-        // const metaTags = document.querySelectorAll('meta');
-        // metaTags.forEach(tag => {
-        //     const name = tag.getAttribute('name');
-        //     const property = tag.getAttribute('property');
-        //     if (name) {
-        //         tag.setAttribute('content', meta[name]);
-        //     }
-        //     if (property) {
-        //         tag.setAttribute('content', meta[property]);
-        //     }
-        // });
-        // const title = document.querySelector('title');
-        // title.innerHTML = meta.title;
+        // og
+        for (const key in meta.og) {
+            this.refreshMetaAttribute(head, key, meta.og[key], META.og[key] === 'property');
+        }
+
+        // twitter
+        for (const key in meta.twitter) {
+            this.refreshMetaAttribute(head, key, meta.twitter[key], META.twitter[key] === 'property');
+        }
     }
 }
 

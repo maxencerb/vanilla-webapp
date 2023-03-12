@@ -13,7 +13,11 @@ export const appRouter = new Router({
         new Route('/:id', 'app'),
         new NotFoundRoute()
     ],
-    wrapper: document.querySelector('#app')
+    wrapper: document.querySelector('#app'),
+    defaultMeta: {
+        title: 'Vanilla web app',
+        description: 'A simple web app built with vanilla JS'
+    }
 });
 
 export function init() {
