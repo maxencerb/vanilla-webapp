@@ -28,11 +28,11 @@
  * 
  * @typedef {"routeChanged" | "initialized" | "unmounted" | "paramsChanged"} RouterEvents
  * @typedef {(newValue: Router) => void} RouterEventListenner
- * @typedef {{[key in RouterEvents]: Map<string, RouterEventListenner> | undefined}} RouterEventListenners
+ * @typedef {{[key in RouterEvents]: Map<number, RouterEventListenner> | undefined}} RouterEventListenners
  * 
  * @typedef {"paramsChanged" | "scriptLoaded"} RouteEvents
  * @typedef {(newValue: Route) => void} RouteEventListenner
- * @typedef {{[key in RouteEvents]: Map<string, RouteEventListenner> | undefined}} RouteEventListenners
+ * @typedef {{[key in RouteEvents]: Map<number, RouteEventListenner> | undefined}} RouteEventListenners
  * 
  */
 
@@ -108,6 +108,18 @@ class Route {
      * @type {Router | undefined}
      */
     router;
+
+    /**
+     * @type {number}
+     * @private
+     */
+    _currentListenerId = 0;
+
+    /**
+     * @type {number}
+     * @private
+     */
+    _paramsListenerId;
 
     /**
      * 
@@ -192,16 +204,16 @@ class Route {
     }
 
     onParamsChanged() {
-        // this.router.refreshMeta();
+        this.router.refreshMeta();
     }
 
     mounted() {
-        this.on('paramsChanged', this.onParamsChanged.bind(this));
+        this._paramsListenerId = this.on('paramsChanged', this.onParamsChanged.bind(this));
         if (this._script) this.fetchScript().then(module => this.runIfExist(module.mounted));
     }
 
     async unmount() {
-        this.off('paramsChanged', this.onParamsChanged.bind(this));
+        this.off('paramsChanged', this._paramsListenerId);
         if (this._script) await this.fetchScript().then(module => this.runIfExist(module.unmount));
     }
 
@@ -215,12 +227,16 @@ class Route {
      * 
      * @param {RouteEvents} event
      * @param {RouteEventListenner} callback
+     * 
+     * @returns {number} id of the listener
      */
     on(event, callback) {
         if (!this._eventListenners[event]) {
             this._eventListenners[event] = new Map();
         }
-        this._eventListenners[event].set('' + callback, callback);
+        const id = this._currentListenerId++;
+        this._eventListenners[event].set(id, callback);
+        return id;
     }
 
     // TODO: fix params changed event not firing
@@ -228,11 +244,13 @@ class Route {
     /**
      * 
      * @param {RouteEvents} event
-     * @param {RouteEventListenner} callback
+     * @param {number} id callback id
+     * 
+     * @returns {boolean} true if the callback was removed
      */
-    off(event, callback) {
+    off(event, id) {
         if (!this._eventListenners[event]) return;
-        this._eventListenners[event].delete('' + callback);
+        return this._eventListenners[event].delete(id);
     }
 
     /**
@@ -241,7 +259,13 @@ class Route {
      */
     emit(event) {
         if (!this._eventListenners[event]) return;
-        this._eventListenners[event]?.forEach(listener => listener(this));
+        this._eventListenners[event]?.forEach(listener => {
+            try {
+                listener(this);
+            } catch (error) {
+                console.error(error);
+            }
+        });
     }
 
     /**
@@ -320,6 +344,16 @@ class Router {
     defaultMeta;
 
     /**
+     * @type {Map<string, number>}
+     */
+    _eventListenerIds = new Map();
+
+    /**
+     * @type {number}
+     */
+    _currentListenerId = 0;
+
+    /**
      * @type {RouteMeta}
      */
     get meta() {
@@ -390,7 +424,6 @@ class Router {
     }
 
     onParamsChanged() {
-        console.log('params changed');
         this.emit("paramsChanged");
     }
 
@@ -401,8 +434,9 @@ class Router {
         window.addEventListener('popstate', this.handleLocation.bind(this));
         document.addEventListener('click', this.onDocumentClick.bind(this));
         for (const route of this.routes) {
-            route.on('paramsChanged', this.onParamsChanged.bind(this));
+            const id = route.on('paramsChanged', this.onParamsChanged.bind(this));
             route.setRouter(this);
+            this._eventListenerIds.set(route.path, id);
         }
         this.isInitialized = true;
         this.emit("initialized");
@@ -416,8 +450,9 @@ class Router {
         window.removeEventListener('popstate', this.handleLocation.bind(this));
         document.removeEventListener('click', this.onDocumentClick.bind(this));
         for (const route of this.routes) {
-            route.off('paramsChanged', this.onParamsChanged.bind(this));
+            route.off('paramsChanged', this._eventListenerIds.get(route.path));
             route.setRouter(undefined);
+            this._eventListenerIds.delete(route.path);
         }
         this.isInitialized = false;
         this.emit("unmounted");
@@ -472,7 +507,13 @@ class Router {
      */
     emit(event) {
         if (this.eventListeners[event]) {
-            this.eventListeners[event]?.forEach(callback => callback(this));
+            this.eventListeners[event]?.forEach(callback => {
+                try {
+                    callback(this);
+                } catch (error) {
+                    console.error(error);
+                }
+            });
         }
     }
 
@@ -486,18 +527,20 @@ class Router {
         if (!this.eventListeners[event]) {
             this.eventListeners[event] = new Map();
         }
-        this.eventListeners[event].set('' + callback, callback);
+        const id = this._currentListenerId++;
+        this.eventListeners[event].set(id, callback);
+        return id;
     }
 
     /**
      * 
      * @param {RouterEvents} event
-     * @param {RouterEventListenner} callback
+     * @param {number} id callback id
      * @returns
      */
-    off(event, callback) {
+    off(event, id) {
         if (!this.eventListeners[event]) return;
-        this.eventListeners[event].delete('' + callback);
+        return this.eventListeners[event].delete(id);
     }
 
 
