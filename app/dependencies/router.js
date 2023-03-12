@@ -25,7 +25,7 @@
  * @property {Routes[]} routes
  * @property {HTMLElement} wrapper
  * @property {string} [base]
- * @property {RouteMeta} [defaultMeta]
+ * @property {RouteMeta | "fromTemplate"} [defaultMeta]
  * 
  * 
  * @typedef {"routeChanged" | "initialized" | "unmounted" | "paramsChanged"} RouterEvents
@@ -416,7 +416,11 @@ class Router {
         this.routes = options.routes;
         this.wrapper = options.wrapper;
         this.notFoundRoute = this.find404Route(this.routes);
-        this.defaultMeta = options.defaultMeta || {};
+        if (options.defaultMeta === "fromTemplate") {
+            this.defaultMeta = this.getMetaAttributesFromTemplate();
+        } else {
+            this.defaultMeta = options.defaultMeta || {};
+        }
     }
 
     /**
@@ -634,6 +638,32 @@ class Router {
         for (const key in meta.twitter) {
             this.refreshMetaAttribute(head, key, meta.twitter[key], META.twitter[key] === 'property');
         }
+    }
+
+    getMetaAttributesFromTemplate() {
+        /**
+         * @type {RouteMeta}
+         */
+        const meta = {};
+        meta.title = document.title;
+        meta.og = {};
+        meta.twitter = {};
+        const metaTags = document.querySelectorAll('meta');
+        metaTags.forEach(tag => {
+            const name = tag.getAttribute('name');
+            const property = tag.getAttribute('property');
+            const content = tag.getAttribute('content');
+            if (name === 'description') {
+                meta.description = content;
+            } else if (name?.startsWith('twitter:')) {
+                meta.twitter[name.replace('twitter:', '')] = content;
+            } else if (property?.startsWith('og:')) {
+                meta.og[property.replace('og:', '')] = content;
+            } else if (property?.startsWith('twitter:')) {
+                meta.twitter[property.replace('twitter:', '')] = content;
+            }
+        });
+        return meta;
     }
 }
 

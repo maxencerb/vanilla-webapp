@@ -14,10 +14,7 @@ export const appRouter = new Router({
         new NotFoundRoute()
     ],
     wrapper: document.querySelector('#app'),
-    defaultMeta: {
-        title: 'Vanilla web app',
-        description: 'A simple web app built with vanilla JS'
-    }
+    defaultMeta: "fromTemplate"
 });
 
 export function init() {
