@@ -18,7 +18,8 @@ The goal of this project is to create a simple webapp that uses vanilla js and r
 
 - [x] Add a router
 - [x] Add prefetching for routes
-- [ ] Add meta tags for router
+- [x] Add meta tags for router
+- [ ] Import default meta from index template
 - [ ] Add CSS scoping
 - [ ] Add components
 - [ ] Add other error components
