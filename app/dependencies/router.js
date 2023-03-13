@@ -139,6 +139,12 @@ class Route {
     _paramsListenerId;
 
     /**
+     * @type {(() => Promise<void>) | undefined}
+     * @private
+     */
+    unmountScript;
+
+    /**
      * 
      * @param {string | 404} path the router path
      * @param {string} view link to the html file
@@ -224,14 +230,17 @@ class Route {
         this.router.refreshMeta();
     }
 
-    mounted() {
+    async mounted() {
         this._paramsListenerId = this.on('paramsChanged', this.onParamsChanged.bind(this));
-        if (this._script) this.fetchScript().then(module => this.runIfExist(module.mounted));
+        if (this._script) {
+            this.unmountScript = await this.fetchScript()
+                .then(module => this.runIfExist(module.mounted));
+        }
     }
 
     async unmount() {
         this.off('paramsChanged', this._paramsListenerId);
-        if (this._script) await this.fetchScript().then(module => this.runIfExist(module.unmount));
+        if (this._script) await this.runIfExist(this.unmountScript);
     }
 
     // TODO: add prefetching
@@ -575,7 +584,7 @@ class Router {
         this.onDomChanged();
         this.currentRoute = route;
         this.emit("routeChanged");
-        route.mounted();
+        await route.mounted();
     }
 
     /**
